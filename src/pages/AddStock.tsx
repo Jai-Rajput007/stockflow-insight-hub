@@ -43,8 +43,8 @@ export default function AddStock() {
   const onSubmit = async (values: AddStockFormValues) => {
     setLoading(true);
     try {
-      // Since values is now guaranteed to have all required fields due to the schema validation
-      const result = await api.addItem(values);
+      // Using type assertion here to ensure type compatibility
+      const result = await api.addItem(values as Omit<Item, 'id' | 'createdAt' | 'updatedAt'>);
       toast({
         title: "Success",
         description: `${result.name} has been added to inventory`,

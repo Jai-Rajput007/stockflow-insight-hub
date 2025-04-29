@@ -68,8 +68,8 @@ export default function CashflowPage() {
   const onSubmit = async (values: CashFlowFormValues) => {
     setLoading(true);
     try {
-      // Since values is now guaranteed to have all required fields due to the schema validation
-      const result = await api.addCashFlow(values);
+      // Using type assertion to ensure type compatibility
+      const result = await api.addCashFlow(values as Omit<CashFlow, 'id' | 'date'>);
       
       // Update cash flows list
       setCashFlows(prev => [result, ...prev]);

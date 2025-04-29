@@ -75,8 +75,8 @@ export default function Sales() {
   const onSubmit = async (values: SaleFormValues) => {
     setLoading(true);
     try {
-      // Since values is now guaranteed to have all required fields due to the schema validation
-      const result = await api.addSale(values);
+      // Using type assertion to ensure type compatibility
+      const result = await api.addSale(values as Omit<Sale, 'id' | 'saleDate' | 'itemName' | 'total'>);
       
       // Update recent sales list
       setRecentSales(prev => [result, ...prev.slice(0, 9)]);
