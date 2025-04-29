@@ -2,8 +2,8 @@
 import { MongoClient, ServerApiVersion, ObjectId } from 'mongodb';
 import { Item, Sale, CashFlow } from '@/types';
 
-// MongoDB connection string - this should be moved to environment variables in production
-const uri = "mongodb+srv://<username>:<password>@<cluster-url>/?retryWrites=true&w=majority";
+// MongoDB connection string with the provided credentials
+const uri = "mongodb+srv://jaisrajputdev:JHyuuDEj6mpf4X7C@stockflow.saaoepn.mongodb.net/?retryWrites=true&w=majority&appName=Stockflow";
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
