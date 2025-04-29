@@ -14,13 +14,14 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 
-// Form schema validation
+// Form schema validation - make all fields required
 const cashFlowSchema = z.object({
   description: z.string().min(1, 'Description is required'),
   amount: z.number().positive('Amount must be positive'),
   isInflow: z.boolean(),
 });
 
+// This ensures form values match what the API expects
 type CashFlowFormValues = z.infer<typeof cashFlowSchema>;
 
 export default function CashflowPage() {
@@ -34,7 +35,7 @@ export default function CashflowPage() {
   const outflows = cashFlows.filter(cf => !cf.isInflow).reduce((sum, cf) => sum + cf.amount, 0);
   const balance = inflows - outflows;
 
-  // Initialize form
+  // Initialize form with required values
   const form = useForm<CashFlowFormValues>({
     resolver: zodResolver(cashFlowSchema),
     defaultValues: {

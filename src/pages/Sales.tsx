@@ -13,12 +13,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-// Form schema validation
+// Form schema validation - make all fields required
 const saleSchema = z.object({
   itemId: z.string().min(1, 'Item is required'),
   quantity: z.number().positive('Quantity must be positive').int('Quantity must be an integer'),
 });
 
+// This ensures form values match what the API expects
 type SaleFormValues = z.infer<typeof saleSchema>;
 
 export default function Sales() {
@@ -29,7 +30,7 @@ export default function Sales() {
   const [loadingItems, setLoadingItems] = useState(true);
   const [loadingSales, setLoadingSales] = useState(true);
 
-  // Initialize form
+  // Initialize form with required values
   const form = useForm<SaleFormValues>({
     resolver: zodResolver(saleSchema),
     defaultValues: {

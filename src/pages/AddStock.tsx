@@ -10,8 +10,9 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Item } from '@/types';
 
-// Form schema validation
+// Form schema validation - make all fields required
 const addStockSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   brand: z.string().min(1, 'Brand is required'),
@@ -20,6 +21,7 @@ const addStockSchema = z.object({
   lowStockThreshold: z.number().positive('Threshold must be positive').int('Threshold must be an integer'),
 });
 
+// This ensures form values match what the API expects
 type AddStockFormValues = z.infer<typeof addStockSchema>;
 
 export default function AddStock() {
