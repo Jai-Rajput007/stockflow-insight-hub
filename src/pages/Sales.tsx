@@ -75,6 +75,7 @@ export default function Sales() {
   const onSubmit = async (values: SaleFormValues) => {
     setLoading(true);
     try {
+      // Since values is now guaranteed to have all required fields, we can pass it directly
       const result = await api.addSale(values);
       
       // Update recent sales list

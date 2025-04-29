@@ -68,6 +68,7 @@ export default function CashflowPage() {
   const onSubmit = async (values: CashFlowFormValues) => {
     setLoading(true);
     try {
+      // Since values is now guaranteed to have all required fields, we can pass it directly
       const result = await api.addCashFlow(values);
       
       // Update cash flows list
