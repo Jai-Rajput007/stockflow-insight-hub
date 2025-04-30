@@ -1,5 +1,5 @@
 
-import { MongoClient, ServerApiVersion, ObjectId } from 'mongodb';
+import { MongoClient, ServerApiVersion, ObjectId, Document, WithId } from 'mongodb';
 import { Item, Sale, CashFlow } from '@/types';
 
 // MongoDB connection string with the provided credentials
@@ -48,27 +48,37 @@ export interface CashFlowDocument extends Omit<CashFlow, 'id'> {
 }
 
 // Helper function to convert MongoDB document to application model
-export function convertItemFromMongo(doc: ItemDocument): Item {
-  const { _id, ...rest } = doc;
+export function convertItemFromMongo(doc: WithId<Document>): Item {
   return {
-    id: _id?.toString() || '',
-    ...rest
+    id: doc._id.toString(),
+    name: doc.name as string,
+    brand: doc.brand as string,
+    type: doc.type as string,
+    quantity: doc.quantity as number,
+    lowStockThreshold: doc.lowStockThreshold as number,
+    createdAt: doc.createdAt as string,
+    updatedAt: doc.updatedAt as string
   };
 }
 
-export function convertSaleFromMongo(doc: SaleDocument): Sale {
-  const { _id, ...rest } = doc;
+export function convertSaleFromMongo(doc: WithId<Document>): Sale {
   return {
-    id: _id?.toString() || '',
-    ...rest
+    id: doc._id.toString(),
+    itemId: doc.itemId as string,
+    itemName: doc.itemName as string,
+    quantity: doc.quantity as number,
+    saleDate: doc.saleDate as string,
+    total: doc.total as number
   };
 }
 
-export function convertCashFlowFromMongo(doc: CashFlowDocument): CashFlow {
-  const { _id, ...rest } = doc;
+export function convertCashFlowFromMongo(doc: WithId<Document>): CashFlow {
   return {
-    id: _id?.toString() || '',
-    ...rest
+    id: doc._id.toString(),
+    description: doc.description as string,
+    amount: doc.amount as number,
+    isInflow: doc.isInflow as boolean,
+    date: doc.date as string
   };
 }
 

@@ -1,6 +1,6 @@
 import { Item, Sale, CashFlow, DashboardStats } from '@/types';
 import { mongodb } from './mongodb';
-import { ObjectId } from 'mongodb';
+import { ObjectId, Document, WithId } from 'mongodb';
 
 // Helper function to simulate API delay (keeping for development purposes)
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -14,7 +14,7 @@ export const api = {
       const itemsCollection = db.collection(mongodb.COLLECTIONS.ITEMS);
       const items = await itemsCollection.find({}).toArray();
       
-      return items.map(mongodb.convertItemFromMongo);
+      return items.map(item => mongodb.convertItemFromMongo(item as WithId<Document>));
     } catch (error) {
       console.error("Error fetching items:", error);
       throw error;
@@ -35,7 +35,7 @@ export const api = {
       
       if (existingItem) {
         // Update quantity
-        const updatedItem = {
+        const updatedDoc = {
           ...existingItem,
           quantity: existingItem.quantity + item.quantity,
           updatedAt: new Date().toISOString()
@@ -43,10 +43,10 @@ export const api = {
         
         await itemsCollection.updateOne(
           { _id: existingItem._id },
-          { $set: updatedItem }
+          { $set: updatedDoc }
         );
         
-        return mongodb.convertItemFromMongo(updatedItem);
+        return mongodb.convertItemFromMongo(updatedDoc as WithId<Document>);
       } else {
         // Create new item
         const newItem = {
@@ -75,7 +75,7 @@ export const api = {
       const salesCollection = db.collection(mongodb.COLLECTIONS.SALES);
       const sales = await salesCollection.find({}).sort({ saleDate: -1 }).toArray();
       
-      return sales.map(mongodb.convertSaleFromMongo);
+      return sales.map(sale => mongodb.convertSaleFromMongo(sale as WithId<Document>));
     } catch (error) {
       console.error("Error fetching sales:", error);
       throw error;
@@ -136,7 +136,7 @@ export const api = {
       const cashFlowCollection = db.collection(mongodb.COLLECTIONS.CASH_FLOW);
       const cashFlows = await cashFlowCollection.find({}).sort({ date: -1 }).toArray();
       
-      return cashFlows.map(mongodb.convertCashFlowFromMongo);
+      return cashFlows.map(cashFlow => mongodb.convertCashFlowFromMongo(cashFlow as WithId<Document>));
     } catch (error) {
       console.error("Error fetching cash flows:", error);
       throw error;
@@ -176,7 +176,7 @@ export const api = {
         $expr: { $lt: ["$quantity", "$lowStockThreshold"] }
       }).toArray();
       
-      return items.map(mongodb.convertItemFromMongo);
+      return items.map(item => mongodb.convertItemFromMongo(item as WithId<Document>));
     } catch (error) {
       console.error("Error fetching low stock items:", error);
       throw error;
@@ -206,16 +206,16 @@ export const api = {
       // Get total items and stock
       const items = await itemsCollection.find({}).toArray();
       const totalItems = items.length;
-      const totalStock = items.reduce((sum, item) => sum + item.quantity, 0);
+      const totalStock = items.reduce((sum, item) => sum + (item.quantity as number), 0);
       
       // Get low stock count
-      const lowStockItems = items.filter(item => item.quantity < item.lowStockThreshold);
+      const lowStockItems = items.filter(item => (item.quantity as number) < (item.lowStockThreshold as number));
       const lowStockCount = lowStockItems.length;
       
       // Get cash balance
       const cashFlows = await cashFlowCollection.find({}).toArray();
-      const inflows = cashFlows.filter(cf => cf.isInflow).reduce((sum, cf) => sum + cf.amount, 0);
-      const outflows = cashFlows.filter(cf => !cf.isInflow).reduce((sum, cf) => sum + cf.amount, 0);
+      const inflows = cashFlows.filter(cf => cf.isInflow).reduce((sum, cf) => sum + (cf.amount as number), 0);
+      const outflows = cashFlows.filter(cf => !cf.isInflow).reduce((sum, cf) => sum + (cf.amount as number), 0);
       const cashBalance = inflows - outflows;
       
       // Get recent sales
@@ -240,7 +240,7 @@ export const api = {
         totalStock,
         lowStockCount,
         cashBalance,
-        recentSales: recentSales.map(mongodb.convertSaleFromMongo),
+        recentSales: recentSales.map(sale => mongodb.convertSaleFromMongo(sale as WithId<Document>)),
         monthlySales
       };
     } catch (error) {
