@@ -1,27 +1,14 @@
 
-import { Item, Sale, CashFlow } from '@/types';
+import { Item, Sale, CashFlow, DashboardStats } from '@/types';
 
 // This is a mock implementation for browser environments
 // In a real-world scenario, you would use a backend API to connect to MongoDB
 
-// Type definitions for mock documents
-export interface ItemDocument extends Omit<Item, 'id'> {
-  _id?: string;
-}
-
-export interface SaleDocument extends Omit<Sale, 'id'> {
-  _id?: string;
-}
-
-export interface CashFlowDocument extends Omit<CashFlow, 'id'> {
-  _id?: string;
-}
-
 // Mock database storage
 const mockDB = {
-  items: [] as ItemDocument[],
-  sales: [] as SaleDocument[],
-  cashflow: [] as CashFlowDocument[]
+  items: [] as Item[],
+  sales: [] as Sale[],
+  cashFlow: [] as CashFlow[]
 };
 
 // Generate a simple ID (in a real app, use a proper ID generation library)
@@ -29,194 +16,195 @@ const generateId = (): string => {
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 };
 
-// Helper function to convert mock document to application model
-export function convertItemFromMongo(doc: ItemDocument): Item {
-  return {
-    id: doc._id || generateId(),
-    name: doc.name,
-    brand: doc.brand,
-    type: doc.type,
-    quantity: doc.quantity,
-    lowStockThreshold: doc.lowStockThreshold,
-    createdAt: doc.createdAt,
-    updatedAt: doc.updatedAt
-  };
-}
+// Helper to simulate API delay (for realistic experience)
+const delay = (ms: number = 300) => new Promise(resolve => setTimeout(resolve, ms));
 
-export function convertSaleFromMongo(doc: SaleDocument): Sale {
-  return {
-    id: doc._id || generateId(),
-    itemId: doc.itemId,
-    itemName: doc.itemName,
-    quantity: doc.quantity,
-    saleDate: doc.saleDate,
-    total: doc.total
-  };
-}
+// MongoDB connection string
+const MONGODB_URI = "mongodb+srv://jaisrajputdev:JHyuuDEj6mpf4X7C@stockflow.saaoepn.mongodb.net/?retryWrites=true&w=majority&appName=Stockflow";
 
-export function convertCashFlowFromMongo(doc: CashFlowDocument): CashFlow {
-  return {
-    id: doc._id || generateId(),
-    description: doc.description,
-    amount: doc.amount,
-    isInflow: doc.isInflow,
-    date: doc.date
-  };
-}
+// Console log the connection info (for debugging purposes)
+console.log("MongoDB connection info:", {
+  uri: MONGODB_URI.replace(/\/\/.*:.*@/, "//[USERNAME:PASSWORD]@") // Hide credentials in logs
+});
 
-// Helper function to convert application model to mock document
-export function convertItemToMongo(item: Partial<Item>): ItemDocument {
-  const { id, ...rest } = item as any;
-  return {
-    _id: id || generateId(),
-    ...rest
-  };
-}
+// Warning: We're using a mock implementation because MongoDB cannot be used directly in browser
+console.warn("Using mock MongoDB implementation. In production, you would connect to MongoDB through a backend API.");
 
-export function convertSaleToMongo(sale: Partial<Sale>): SaleDocument {
-  const { id, ...rest } = sale as any;
-  return {
-    _id: id || generateId(),
-    ...rest
-  };
-}
-
-export function convertCashFlowToMongo(cashFlow: Partial<CashFlow>): CashFlowDocument {
-  const { id, ...rest } = cashFlow as any;
-  return {
-    _id: id || generateId(),
-    ...rest
-  };
-}
-
-// Mock MongoDB client interface
 export const mongodb = {
-  connect: async () => {
-    console.log("Connected to mock MongoDB database");
-    return {
-      collection: (collectionName: string) => {
-        const getCollection = () => {
-          switch (collectionName) {
-            case 'items': return mockDB.items;
-            case 'sales': return mockDB.sales;
-            case 'cashflow': return mockDB.cashflow;
-            default: throw new Error(`Collection ${collectionName} not found`);
-          }
-        };
-
-        return {
-          find: (query = {}) => ({
-            sort: (sortOptions = {}) => ({
-              limit: (limit?: number) => ({
-                toArray: async () => {
-                  let results = [...getCollection()];
-                  
-                  // Basic query filtering (very simplified)
-                  if (query.$expr && query.$expr.$lt) {
-                    // Handle low stock query
-                    results = results.filter((item: any) => 
-                      item.quantity < item.lowStockThreshold
-                    );
-                  }
-                  
-                  // Apply limit if provided
-                  if (limit) {
-                    results = results.slice(0, limit);
-                  }
-                  
-                  return results;
-                }
-              }),
-              toArray: async () => {
-                let results = [...getCollection()];
-                
-                // Handle sorting (very simplified)
-                if (sortOptions && Object.keys(sortOptions).length > 0) {
-                  const sortField = Object.keys(sortOptions)[0];
-                  const sortOrder = sortOptions[sortField];
-                  
-                  results.sort((a: any, b: any) => {
-                    if (sortOrder === -1) {
-                      return a[sortField] > b[sortField] ? -1 : 1;
-                    } else {
-                      return a[sortField] < b[sortField] ? -1 : 1;
-                    }
-                  });
-                }
-                
-                return results;
-              }
-            })
-          }),
-          findOne: async (query: any) => {
-            const collection = getCollection();
-            // Very simplified query matching
-            if (query._id) {
-              return collection.find((item: any) => item._id === query._id) || null;
-            } else {
-              // Match all fields in query
-              return collection.find((item: any) => {
-                return Object.keys(query).every(key => item[key] === query[key]);
-              }) || null;
-            }
-          },
-          insertOne: async (doc: any) => {
-            const id = doc._id || generateId();
-            const newDoc = { ...doc, _id: id };
-            getCollection().push(newDoc);
-            return { insertedId: id };
-          },
-          updateOne: async (query: any, update: any) => {
-            const collection = getCollection();
-            const index = collection.findIndex((item: any) => {
-              if (query._id) {
-                return item._id === query._id;
-              }
-              return false;
-            });
-            
-            if (index !== -1) {
-              // Handle $inc operator
-              if (update.$inc) {
-                Object.keys(update.$inc).forEach(key => {
-                  collection[index][key] += update.$inc[key];
-                });
-              }
-              
-              // Handle $set operator
-              if (update.$set) {
-                collection[index] = { ...collection[index], ...update.$set };
-              }
-              
-              return { modifiedCount: 1 };
-            }
-            
-            return { modifiedCount: 0 };
-          }
-        };
-      }
-    };
+  // Items collection operations
+  getItems: async (): Promise<Item[]> => {
+    console.log("Mock: Fetching items");
+    await delay();
+    return [...mockDB.items];
   },
-  convertItemFromMongo,
-  convertSaleFromMongo,
-  convertCashFlowFromMongo,
-  convertItemToMongo,
-  convertSaleToMongo,
-  convertCashFlowToMongo,
-  COLLECTIONS: {
-    ITEMS: 'items',
-    SALES: 'sales',
-    CASH_FLOW: 'cashflow'
+  
+  addItem: async (item: Omit<Item, 'id' | 'createdAt' | 'updatedAt'>): Promise<Item> => {
+    console.log("Mock: Adding item", item);
+    await delay();
+    
+    // Check if item exists
+    const existingItemIndex = mockDB.items.findIndex(
+      i => i.name === item.name && i.brand === item.brand && i.type === item.type
+    );
+    
+    if (existingItemIndex >= 0) {
+      // Update quantity
+      const existingItem = mockDB.items[existingItemIndex];
+      const updatedItem = {
+        ...existingItem,
+        quantity: existingItem.quantity + item.quantity,
+        updatedAt: new Date().toISOString()
+      };
+      
+      mockDB.items[existingItemIndex] = updatedItem;
+      return updatedItem;
+    } else {
+      // Create new item
+      const newItem: Item = {
+        id: generateId(),
+        ...item,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      mockDB.items.push(newItem);
+      return newItem;
+    }
+  },
+  
+  // Sales collection operations
+  getSales: async (): Promise<Sale[]> => {
+    console.log("Mock: Fetching sales");
+    await delay();
+    return [...mockDB.sales].sort((a, b) => 
+      new Date(b.saleDate).getTime() - new Date(a.saleDate).getTime()
+    );
+  },
+  
+  addSale: async (sale: Omit<Sale, 'id' | 'saleDate' | 'itemName' | 'total'>): Promise<Sale> => {
+    console.log("Mock: Adding sale", sale);
+    await delay();
+    
+    // Find the item
+    const item = mockDB.items.find(i => i.id === sale.itemId);
+    
+    if (!item) {
+      throw new Error('Item not found');
+    }
+    
+    if (item.quantity < sale.quantity) {
+      throw new Error('Insufficient stock');
+    }
+    
+    // Update item quantity
+    const itemIndex = mockDB.items.findIndex(i => i.id === sale.itemId);
+    mockDB.items[itemIndex] = {
+      ...item,
+      quantity: item.quantity - sale.quantity,
+      updatedAt: new Date().toISOString()
+    };
+    
+    // Add sale
+    const newSale: Sale = {
+      id: generateId(),
+      itemId: sale.itemId,
+      itemName: item.name,
+      quantity: sale.quantity,
+      total: sale.quantity * 19.99, // mock price calculation
+      saleDate: new Date().toISOString(),
+    };
+    
+    mockDB.sales.push(newSale);
+    return newSale;
+  },
+  
+  // Cash Flow collection operations
+  getCashFlows: async (): Promise<CashFlow[]> => {
+    console.log("Mock: Fetching cash flows");
+    await delay();
+    return [...mockDB.cashFlow].sort((a, b) => 
+      new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+  },
+  
+  addCashFlow: async (cashFlow: Omit<CashFlow, 'id' | 'date'>): Promise<CashFlow> => {
+    console.log("Mock: Adding cash flow", cashFlow);
+    await delay();
+    
+    const newCashFlow: CashFlow = {
+      id: generateId(),
+      ...cashFlow,
+      date: new Date().toISOString()
+    };
+    
+    mockDB.cashFlow.push(newCashFlow);
+    return newCashFlow;
+  },
+  
+  // Low Stock Notifications
+  getLowStockItems: async (): Promise<Item[]> => {
+    console.log("Mock: Fetching low stock items");
+    await delay();
+    
+    // Find items where quantity is less than lowStockThreshold
+    return mockDB.items.filter(item => item.quantity < item.lowStockThreshold);
+  },
+  
+  // Dashboard
+  getDashboardStats: async (): Promise<DashboardStats> => {
+    console.log("Mock: Fetching dashboard stats");
+    await delay();
+    
+    // Get total items and stock
+    const totalItems = mockDB.items.length;
+    const totalStock = mockDB.items.reduce((sum, item) => sum + item.quantity, 0);
+    
+    // Get low stock count
+    const lowStockItems = mockDB.items.filter(item => item.quantity < item.lowStockThreshold);
+    const lowStockCount = lowStockItems.length;
+    
+    // Get cash balance
+    const inflows = mockDB.cashFlow
+      .filter(cf => cf.isInflow)
+      .reduce((sum, cf) => sum + cf.amount, 0);
+    const outflows = mockDB.cashFlow
+      .filter(cf => !cf.isInflow)
+      .reduce((sum, cf) => sum + cf.amount, 0);
+    const cashBalance = inflows - outflows;
+    
+    // Get recent sales
+    const recentSales = [...mockDB.sales]
+      .sort((a, b) => new Date(b.saleDate).getTime() - new Date(a.saleDate).getTime())
+      .slice(0, 5);
+    
+    // For monthly sales, we would ideally query with aggregation
+    // This is simplified for demonstration purposes
+    const monthlySales = [
+      { month: 'Jan', total: 5000 },
+      { month: 'Feb', total: 6200 },
+      { month: 'Mar', total: 4800 },
+      { month: 'Apr', total: 5600 },
+      { month: 'May', total: 7500 },
+      { month: 'Jun', total: 8200 },
+    ];
+    
+    return {
+      totalItems,
+      totalStock,
+      lowStockCount,
+      cashBalance,
+      recentSales,
+      monthlySales
+    };
   }
 };
 
 // Seed some initial data
-// Add some sample items
 const seedData = () => {
   // Sample items
   mockDB.items = [
     {
-      _id: generateId(),
+      id: generateId(),
       name: "T-Shirt",
       brand: "Example Brand",
       type: "Clothing",
@@ -226,7 +214,7 @@ const seedData = () => {
       updatedAt: new Date().toISOString()
     },
     {
-      _id: generateId(),
+      id: generateId(),
       name: "Jeans",
       brand: "Denim Co",
       type: "Clothing",
@@ -236,7 +224,7 @@ const seedData = () => {
       updatedAt: new Date().toISOString()
     },
     {
-      _id: generateId(),
+      id: generateId(),
       name: "Sunglasses",
       brand: "Sun Co",
       type: "Accessories",
@@ -250,16 +238,16 @@ const seedData = () => {
   // Sample sales
   mockDB.sales = [
     {
-      _id: generateId(),
-      itemId: mockDB.items[0]._id!,
+      id: generateId(),
+      itemId: mockDB.items[0].id,
       itemName: mockDB.items[0].name,
       quantity: 2,
       total: 39.98,
       saleDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
     },
     {
-      _id: generateId(),
-      itemId: mockDB.items[1]._id!,
+      id: generateId(),
+      itemId: mockDB.items[1].id,
       itemName: mockDB.items[1].name,
       quantity: 1,
       total: 49.99,
@@ -268,16 +256,16 @@ const seedData = () => {
   ];
 
   // Sample cash flows
-  mockDB.cashflow = [
+  mockDB.cashFlow = [
     {
-      _id: generateId(),
+      id: generateId(),
       description: "Initial investment",
       amount: 5000,
       isInflow: true,
       date: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
     },
     {
-      _id: generateId(),
+      id: generateId(),
       description: "Rent payment",
       amount: 1200,
       isInflow: false,
