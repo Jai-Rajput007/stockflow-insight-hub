@@ -189,5 +189,20 @@ export const api = {
       // Fallback to mock implementation
       return mongodb.getDashboardStats();
     }
+  },
+  
+  // Health check
+  checkHealth: async (): Promise<any> => {
+    try {
+      console.log("Checking API health");
+      const response = await fetch(`${API_BASE_URL.replace('/api', '')}/health`);
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error("Health check failed:", error);
+      return { status: "error", message: "Could not connect to backend API" };
+    }
   }
 };

@@ -9,6 +9,7 @@ import os
 from bson import ObjectId
 from fastapi.encoders import jsonable_encoder
 import logging
+import asyncio
 from dotenv import load_dotenv
 
 # Configure logging
@@ -42,25 +43,37 @@ db = None
 async def startup_db_client():
     global client, db
     logger.info(f"Connecting to MongoDB: {MONGODB_URI}")
-    client = AsyncIOMotorClient(MONGODB_URI)
-    db = client[DATABASE_NAME]
     
-    # Initialize collections if they don't exist
+    try:
+        # Create a test client connection to verify
+        client = AsyncIOMotorClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
+        # Force a connection to verify
+        await client.server_info()
+        logger.info("Successfully connected to MongoDB")
+        
+        db = client[DATABASE_NAME]
+        logger.info(f"Using database: {DATABASE_NAME}")
+        
+        # Initialize collections
+        await initialize_collections()
+    except Exception as e:
+        logger.error(f"Failed to connect to MongoDB: {e}")
+        raise e
+
+async def initialize_collections():
+    """Initialize collections and add sample data if they're empty"""
+    logger.info("Checking and initializing collections")
+    
+    # List existing collections
     collections = await db.list_collection_names()
+    logger.info(f"Existing collections: {collections}")
     
+    # Initialize items collection
     if "items" not in collections:
         logger.info("Creating items collection")
         await db.create_collection("items")
     
-    if "sales" not in collections:
-        logger.info("Creating sales collection")
-        await db.create_collection("sales")
-    
-    if "cashflows" not in collections:
-        logger.info("Creating cashflows collection")
-        await db.create_collection("cashflows")
-    
-    # Add some sample data if collections are empty
+    # Add sample items if empty
     if await db.items.count_documents({}) == 0:
         logger.info("Adding sample items")
         sample_items = [
@@ -90,9 +103,103 @@ async def startup_db_client():
                 "lowStockThreshold": 5,
                 "createdAt": datetime.now().isoformat(),
                 "updatedAt": datetime.now().isoformat()
+            },
+            {
+                "name": "Sneakers",
+                "brand": "FootWear Inc",
+                "type": "Footwear",
+                "quantity": 20,
+                "lowStockThreshold": 7,
+                "createdAt": datetime.now().isoformat(),
+                "updatedAt": datetime.now().isoformat()
+            },
+            {
+                "name": "Watch",
+                "brand": "TimeCo",
+                "type": "Accessories",
+                "quantity": 8,
+                "lowStockThreshold": 10,
+                "createdAt": datetime.now().isoformat(),
+                "updatedAt": datetime.now().isoformat()
             }
         ]
-        await db.items.insert_many(sample_items)
+        result = await db.items.insert_many(sample_items)
+        logger.info(f"Inserted {len(result.inserted_ids)} sample items")
+    
+    # Initialize sales collection
+    if "sales" not in collections:
+        logger.info("Creating sales collection")
+        await db.create_collection("sales")
+    
+    # Add sample sales if empty
+    if await db.sales.count_documents({}) == 0:
+        logger.info("Adding sample sales")
+        
+        # Get some item IDs to reference
+        items = await db.items.find().to_list(length=3)
+        
+        if items:
+            sample_sales = []
+            for i, item in enumerate(items):
+                # Create multiple sales per item with different dates
+                for j in range(3):
+                    days_ago = i * 2 + j
+                    sale_date = datetime.now()
+                    
+                    sample_sales.append({
+                        "itemId": str(item["_id"]),
+                        "itemName": item["name"],
+                        "quantity": j + 1,
+                        "total": (j + 1) * 19.99,
+                        "saleDate": sale_date.isoformat()
+                    })
+            
+            if sample_sales:
+                result = await db.sales.insert_many(sample_sales)
+                logger.info(f"Inserted {len(result.inserted_ids)} sample sales")
+    
+    # Initialize cashflows collection
+    if "cashflows" not in collections:
+        logger.info("Creating cashflows collection")
+        await db.create_collection("cashflows")
+    
+    # Add sample cashflows if empty
+    if await db.cashflows.count_documents({}) == 0:
+        logger.info("Adding sample cashflows")
+        sample_cashflows = [
+            {
+                "description": "Initial investment",
+                "amount": 5000.00,
+                "isInflow": True,
+                "date": datetime.now().isoformat()
+            },
+            {
+                "description": "Rent payment",
+                "amount": 1200.00,
+                "isInflow": False,
+                "date": datetime.now().isoformat()
+            },
+            {
+                "description": "Sales revenue",
+                "amount": 3500.00,
+                "isInflow": True,
+                "date": datetime.now().isoformat()
+            },
+            {
+                "description": "Utilities",
+                "amount": 350.00,
+                "isInflow": False,
+                "date": datetime.now().isoformat()
+            },
+            {
+                "description": "Online orders",
+                "amount": 2200.00,
+                "isInflow": True,
+                "date": datetime.now().isoformat()
+            }
+        ]
+        result = await db.cashflows.insert_many(sample_cashflows)
+        logger.info(f"Inserted {len(result.inserted_ids)} sample cashflows")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
@@ -314,15 +421,45 @@ async def get_dashboard_stats():
     recent_sales = await db.sales.find().sort("saleDate", -1).limit(5).to_list(5)
     recent_sales = [fix_id(sale) for sale in recent_sales]
     
-    # Mock monthly sales data (in a real app, this would use aggregation)
-    monthly_sales = [
-        {"month": "Jan", "total": 5000},
-        {"month": "Feb", "total": 6200},
-        {"month": "Mar", "total": 4800},
-        {"month": "Apr", "total": 5600},
-        {"month": "May", "total": 7500},
-        {"month": "Jun", "total": 8200},
+    # Generate monthly sales data based on actual data
+    pipeline = [
+        {
+            "$group": {
+                "_id": {"$substr": ["$saleDate", 0, 7]},  # Group by YYYY-MM
+                "total": {"$sum": "$total"}
+            }
+        },
+        {"$sort": {"_id": 1}},  # Sort by date
+        {"$limit": 6}  # Get last 6 months
     ]
+    
+    monthly_sales_data = await db.sales.aggregate(pipeline).to_list(6)
+    
+    # Format the monthly sales data
+    monthly_sales = []
+    
+    # If we have real data, use it
+    if monthly_sales_data:
+        for item in monthly_sales_data:
+            # Convert YYYY-MM to month name
+            try:
+                year_month = item["_id"].split("-")
+                month_num = int(year_month[1])
+                month_name = datetime(2000, month_num, 1).strftime("%b")
+                monthly_sales.append({"month": month_name, "total": item["total"]})
+            except Exception as e:
+                logger.error(f"Error formatting monthly sales: {e}")
+    
+    # If no real data, use mock data
+    if not monthly_sales:
+        monthly_sales = [
+            {"month": "Jan", "total": 5000},
+            {"month": "Feb", "total": 6200},
+            {"month": "Mar", "total": 4800},
+            {"month": "Apr", "total": 5600},
+            {"month": "May", "total": 7500},
+            {"month": "Jun", "total": 8200},
+        ]
     
     return {
         "totalItems": items_count,
@@ -337,6 +474,41 @@ async def get_dashboard_stats():
 @app.get("/")
 async def root():
     return {"message": "Welcome to the StockFlow API"}
+
+# Simple health check endpoint to verify MongoDB connection
+@app.get("/health")
+async def health():
+    try:
+        if not client:
+            return {"status": "error", "message": "MongoDB client not initialized"}
+            
+        # Ping the database
+        await client.admin.command('ping')
+        
+        # Get database stats
+        db_stats = await db.command("dbstats")
+        
+        # Get collection counts
+        items_count = await db.items.count_documents({})
+        sales_count = await db.sales.count_documents({})
+        cashflows_count = await db.cashflows.count_documents({})
+        
+        return {
+            "status": "healthy",
+            "mongodb": "connected",
+            "database": DATABASE_NAME,
+            "collections": {
+                "items": items_count,
+                "sales": sales_count,
+                "cashflows": cashflows_count
+            }
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
 
 if __name__ == "__main__":
     import uvicorn
