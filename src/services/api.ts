@@ -1,20 +1,17 @@
+
 import { Item, Sale, CashFlow, DashboardStats } from '@/types';
 import { mongodb } from './mongodb';
-import { ObjectId, Document, WithId } from 'mongodb';
 
-// Helper function to simulate API delay (keeping for development purposes)
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-// MongoDB API service
+// API service using mock MongoDB implementation
 export const api = {
   // Items
   getItems: async (): Promise<Item[]> => {
     try {
       const db = await mongodb.connect();
       const itemsCollection = db.collection(mongodb.COLLECTIONS.ITEMS);
-      const items = await itemsCollection.find({}).toArray();
+      const items = await itemsCollection.find().toArray();
       
-      return items.map(item => mongodb.convertItemFromMongo(item as WithId<Document>));
+      return items.map(item => mongodb.convertItemFromMongo(item));
     } catch (error) {
       console.error("Error fetching items:", error);
       throw error;
@@ -46,7 +43,7 @@ export const api = {
           { $set: updatedDoc }
         );
         
-        return mongodb.convertItemFromMongo(updatedDoc as WithId<Document>);
+        return mongodb.convertItemFromMongo(updatedDoc);
       } else {
         // Create new item
         const newItem = {
@@ -73,9 +70,9 @@ export const api = {
     try {
       const db = await mongodb.connect();
       const salesCollection = db.collection(mongodb.COLLECTIONS.SALES);
-      const sales = await salesCollection.find({}).sort({ saleDate: -1 }).toArray();
+      const sales = await salesCollection.find().sort({ saleDate: -1 }).toArray();
       
-      return sales.map(sale => mongodb.convertSaleFromMongo(sale as WithId<Document>));
+      return sales.map(sale => mongodb.convertSaleFromMongo(sale));
     } catch (error) {
       console.error("Error fetching sales:", error);
       throw error;
@@ -89,7 +86,7 @@ export const api = {
       const salesCollection = db.collection(mongodb.COLLECTIONS.SALES);
       
       // Find the item
-      const item = await itemsCollection.findOne({ _id: new ObjectId(sale.itemId) });
+      const item = await itemsCollection.findOne({ _id: sale.itemId });
       
       if (!item) {
         throw new Error('Item not found');
@@ -134,9 +131,9 @@ export const api = {
     try {
       const db = await mongodb.connect();
       const cashFlowCollection = db.collection(mongodb.COLLECTIONS.CASH_FLOW);
-      const cashFlows = await cashFlowCollection.find({}).sort({ date: -1 }).toArray();
+      const cashFlows = await cashFlowCollection.find().sort({ date: -1 }).toArray();
       
-      return cashFlows.map(cashFlow => mongodb.convertCashFlowFromMongo(cashFlow as WithId<Document>));
+      return cashFlows.map(cashFlow => mongodb.convertCashFlowFromMongo(cashFlow));
     } catch (error) {
       console.error("Error fetching cash flows:", error);
       throw error;
@@ -176,7 +173,7 @@ export const api = {
         $expr: { $lt: ["$quantity", "$lowStockThreshold"] }
       }).toArray();
       
-      return items.map(item => mongodb.convertItemFromMongo(item as WithId<Document>));
+      return items.map(item => mongodb.convertItemFromMongo(item));
     } catch (error) {
       console.error("Error fetching low stock items:", error);
       throw error;
@@ -204,22 +201,22 @@ export const api = {
       const cashFlowCollection = db.collection(mongodb.COLLECTIONS.CASH_FLOW);
       
       // Get total items and stock
-      const items = await itemsCollection.find({}).toArray();
+      const items = await itemsCollection.find().toArray();
       const totalItems = items.length;
-      const totalStock = items.reduce((sum, item) => sum + (item.quantity as number), 0);
+      const totalStock = items.reduce((sum, item: any) => sum + item.quantity, 0);
       
       // Get low stock count
-      const lowStockItems = items.filter(item => (item.quantity as number) < (item.lowStockThreshold as number));
+      const lowStockItems = items.filter((item: any) => item.quantity < item.lowStockThreshold);
       const lowStockCount = lowStockItems.length;
       
       // Get cash balance
-      const cashFlows = await cashFlowCollection.find({}).toArray();
-      const inflows = cashFlows.filter(cf => cf.isInflow).reduce((sum, cf) => sum + (cf.amount as number), 0);
-      const outflows = cashFlows.filter(cf => !cf.isInflow).reduce((sum, cf) => sum + (cf.amount as number), 0);
+      const cashFlows = await cashFlowCollection.find().toArray();
+      const inflows = cashFlows.filter((cf: any) => cf.isInflow).reduce((sum, cf: any) => sum + cf.amount, 0);
+      const outflows = cashFlows.filter((cf: any) => !cf.isInflow).reduce((sum, cf: any) => sum + cf.amount, 0);
       const cashBalance = inflows - outflows;
       
       // Get recent sales
-      const recentSales = await salesCollection.find({})
+      const recentSales = await salesCollection.find()
         .sort({ saleDate: -1 })
         .limit(5)
         .toArray();
@@ -240,7 +237,7 @@ export const api = {
         totalStock,
         lowStockCount,
         cashBalance,
-        recentSales: recentSales.map(sale => mongodb.convertSaleFromMongo(sale as WithId<Document>)),
+        recentSales: recentSales.map(sale => mongodb.convertSaleFromMongo(sale)),
         monthlySales
       };
     } catch (error) {
