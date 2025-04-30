@@ -8,6 +8,15 @@ from datetime import datetime
 import os
 from bson import ObjectId
 from fastapi.encoders import jsonable_encoder
+import logging
+from dotenv import load_dotenv
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Load environment variables
+load_dotenv()
 
 # Initialize FastAPI app
 app = FastAPI(title="StockFlow API")
@@ -22,9 +31,75 @@ app.add_middleware(
 )
 
 # MongoDB connection
-MONGODB_URI = "mongodb+srv://jaisrajputdev:JHyuuDEj6mpf4X7C@stockflow.saaoepn.mongodb.net/?retryWrites=true&w=majority&appName=Stockflow"
-client = AsyncIOMotorClient(MONGODB_URI)
-db = client.stockflow  # Database name
+MONGODB_URI = os.getenv("MONGODB_URI")
+DATABASE_NAME = os.getenv("DATABASE_NAME", "stockflow")
+
+# Create motor client
+client = None
+db = None
+
+@app.on_event("startup")
+async def startup_db_client():
+    global client, db
+    logger.info(f"Connecting to MongoDB: {MONGODB_URI}")
+    client = AsyncIOMotorClient(MONGODB_URI)
+    db = client[DATABASE_NAME]
+    
+    # Initialize collections if they don't exist
+    collections = await db.list_collection_names()
+    
+    if "items" not in collections:
+        logger.info("Creating items collection")
+        await db.create_collection("items")
+    
+    if "sales" not in collections:
+        logger.info("Creating sales collection")
+        await db.create_collection("sales")
+    
+    if "cashflows" not in collections:
+        logger.info("Creating cashflows collection")
+        await db.create_collection("cashflows")
+    
+    # Add some sample data if collections are empty
+    if await db.items.count_documents({}) == 0:
+        logger.info("Adding sample items")
+        sample_items = [
+            {
+                "name": "T-Shirt",
+                "brand": "Example Brand",
+                "type": "Clothing",
+                "quantity": 50,
+                "lowStockThreshold": 10,
+                "createdAt": datetime.now().isoformat(),
+                "updatedAt": datetime.now().isoformat()
+            },
+            {
+                "name": "Jeans",
+                "brand": "Denim Co",
+                "type": "Clothing",
+                "quantity": 5,
+                "lowStockThreshold": 8,
+                "createdAt": datetime.now().isoformat(),
+                "updatedAt": datetime.now().isoformat()
+            },
+            {
+                "name": "Sunglasses",
+                "brand": "Sun Co",
+                "type": "Accessories",
+                "quantity": 15,
+                "lowStockThreshold": 5,
+                "createdAt": datetime.now().isoformat(),
+                "updatedAt": datetime.now().isoformat()
+            }
+        ]
+        await db.items.insert_many(sample_items)
+
+@app.on_event("shutdown")
+async def shutdown_db_client():
+    global client
+    if client:
+        client.close()
+        logger.info("MongoDB connection closed")
 
 # Helper function to convert ObjectId to string in all documents
 def fix_id(item):
@@ -87,11 +162,13 @@ class DashboardStats(BaseModel):
 # Items routes
 @app.get("/api/items", response_model=List[Item])
 async def get_items():
+    logger.info("Getting all items")
     items = await db.items.find().to_list(1000)
     return [fix_id(item) for item in items]
 
 @app.post("/api/items", response_model=Item)
 async def add_item(item: ItemBase):
+    logger.info(f"Adding/updating item: {item.name}")
     # Check if item exists
     existing_item = await db.items.find_one({
         "name": item.name,
@@ -102,6 +179,7 @@ async def add_item(item: ItemBase):
     now = datetime.now().isoformat()
     
     if existing_item:
+        logger.info(f"Updating existing item: {item.name}")
         # Update quantity
         result = await db.items.update_one(
             {"_id": existing_item["_id"]},
@@ -113,6 +191,7 @@ async def add_item(item: ItemBase):
         updated_item = await db.items.find_one({"_id": existing_item["_id"]})
         return fix_id(updated_item)
     else:
+        logger.info(f"Creating new item: {item.name}")
         # Create new item
         new_item = item.dict()
         new_item["createdAt"] = now
@@ -124,17 +203,26 @@ async def add_item(item: ItemBase):
 # Sales routes
 @app.get("/api/sales", response_model=List[Sale])
 async def get_sales():
+    logger.info("Getting all sales")
     sales = await db.sales.find().sort("saleDate", -1).to_list(1000)
     return [fix_id(sale) for sale in sales]
 
 @app.post("/api/sales", response_model=Sale)
 async def add_sale(sale: SaleBase):
+    logger.info(f"Adding sale for item ID: {sale.itemId}")
     # Find the item
-    item = await db.items.find_one({"_id": ObjectId(sale.itemId)})
+    try:
+        item = await db.items.find_one({"_id": ObjectId(sale.itemId)})
+    except Exception as e:
+        logger.error(f"Error finding item: {e}")
+        raise HTTPException(status_code=400, detail=f"Invalid item ID format: {sale.itemId}")
+        
     if not item:
+        logger.error(f"Item not found with ID: {sale.itemId}")
         raise HTTPException(status_code=404, detail="Item not found")
     
     if item["quantity"] < sale.quantity:
+        logger.error(f"Insufficient stock for item: {sale.itemId}")
         raise HTTPException(status_code=400, detail="Insufficient stock")
     
     # Update item quantity
@@ -162,11 +250,13 @@ async def add_sale(sale: SaleBase):
 # Cash Flow routes
 @app.get("/api/cashflows", response_model=List[CashFlow])
 async def get_cash_flows():
+    logger.info("Getting all cash flows")
     cashflows = await db.cashflows.find().sort("date", -1).to_list(1000)
     return [fix_id(cf) for cf in cashflows]
 
 @app.post("/api/cashflows", response_model=CashFlow)
 async def add_cash_flow(cashflow: CashFlowBase):
+    logger.info(f"Adding cash flow: {cashflow.description}")
     new_cashflow = cashflow.dict()
     new_cashflow["date"] = datetime.now().isoformat()
     
@@ -177,6 +267,7 @@ async def add_cash_flow(cashflow: CashFlowBase):
 # Low Stock Items
 @app.get("/api/lowstock", response_model=List[Item])
 async def get_low_stock_items():
+    logger.info("Getting low stock items")
     pipeline = [
         {"$match": {"$expr": {"$lt": ["$quantity", "$lowStockThreshold"]}}},
     ]
@@ -186,6 +277,7 @@ async def get_low_stock_items():
 # Dashboard stats
 @app.get("/api/dashboard", response_model=DashboardStats)
 async def get_dashboard_stats():
+    logger.info("Getting dashboard stats")
     # Get total items and stock
     items_count = await db.items.count_documents({})
     
