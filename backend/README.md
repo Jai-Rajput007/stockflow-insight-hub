@@ -1,39 +1,58 @@
 
-# StockFlow Backend API
+# StockFlow Backend
 
-This is the FastAPI backend for the StockFlow application, which provides inventory management functionality.
+This directory contains the backend API and database seeding script for StockFlow.
 
-## Setup
+## Setup and Running
 
-1. Install the requirements:
-```
-pip install -r requirements.txt
-```
+### Prerequisites
+- Python 3.7 or higher
+- MongoDB Atlas account (or local MongoDB)
 
-2. Start the server:
-```
-uvicorn main:app --reload
-```
+### Installation
+1. Install required packages:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-The API will be available at http://localhost:8000
+### Running the Backend
+1. Start the FastAPI server:
+   ```bash
+   python main.py
+   ```
+   Or with uvicorn directly:
+   ```bash
+   uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+   ```
 
-## API Documentation
+2. The API will be available at: http://localhost:8000
 
-Once the server is running, you can access the interactive API documentation at:
-- http://localhost:8000/docs (Swagger UI)
-- http://localhost:8000/redoc (ReDoc)
+### Populating the Database
+To populate the database with sample data:
 
-## Available Endpoints
+1. Run the seed script:
+   ```bash
+   python seed_data.py
+   ```
 
-- `GET /api/items` - Get all inventory items
-- `POST /api/items` - Add a new item or update existing item
-- `GET /api/sales` - Get all sales records
-- `POST /api/sales` - Create a new sale
-- `GET /api/cashflows` - Get all cash flow records
-- `POST /api/cashflows` - Add a new cash flow record
-- `GET /api/lowstock` - Get items that are below their stock threshold
-- `GET /api/dashboard` - Get dashboard statistics
+2. This will:
+   - Clear existing data in all collections
+   - Create 20 inventory items (some with low stock)
+   - Create 50 sales records
+   - Create 40 cash flow records
+   - Display a summary of the database
 
-## Environment Variables
+### API Endpoints
+- GET /api/items - Get all inventory items
+- POST /api/items - Add a new item
+- GET /api/sales - Get all sales
+- POST /api/sales - Record a new sale
+- GET /api/cashflows - Get all cash flows
+- POST /api/cashflows - Add a new cash flow
+- GET /api/lowstock - Get low stock items
+- GET /api/dashboard - Get dashboard statistics
+- GET /health - Check API and database health
 
-- `MONGODB_URI` - MongoDB connection string (defined in .env file)
+### Troubleshooting
+- If you encounter connection issues, verify that the MongoDB URI in the `.env` file is correct
+- Check that the MongoDB Atlas IP access list includes your IP address
